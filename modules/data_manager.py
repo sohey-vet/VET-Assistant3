@@ -181,15 +181,28 @@ def get_next_week_themes(animal_type: str, tweets_df: pd.DataFrame = None) -> Di
             available_themes.append(theme)
     
     # 週間スケジュール提案
-    weekly_schedule = {
-        '月曜': [available_themes[0] if available_themes else '健康管理の基本'],
-        '火曜': [available_themes[1] if len(available_themes) > 1 else '日常ケア'],
-        '水曜': [available_themes[2] if len(available_themes) > 2 else '行動観察'],
-        '木曜': [available_themes[3] if len(available_themes) > 3 else '予防医学'],
-        '金曜': [available_themes[4] if len(available_themes) > 4 else '応急手当'],
-        '土曜': [available_themes[5] if len(available_themes) > 5 else '栄養管理'],
-        '日曜': [available_themes[6] if len(available_themes) > 6 else '生活環境']
-    }
+    if animal_type == '犬':
+        # 犬の場合：月曜→火曜、水曜→木曜で同じテーマのクイズ・解答ペア
+        weekly_schedule = {
+            '月曜': [available_themes[0] if available_themes else '犬の健康管理'],      # クイズ
+            '火曜': [available_themes[0] if available_themes else '犬の健康管理'],      # 解答（同じテーマ）
+            '水曜': [available_themes[1] if len(available_themes) > 1 else '犬の行動学'], # クイズ
+            '木曜': [available_themes[1] if len(available_themes) > 1 else '犬の行動学'], # 解答（同じテーマ）
+            '金曜': [available_themes[2] if len(available_themes) > 2 else '犬のしつけ'],
+            '土曜': [available_themes[3] if len(available_themes) > 3 else '犬の栄養学'],
+            '日曜': [available_themes[4] if len(available_themes) > 4 else '犬の老齢ケア']
+        }
+    else:
+        # 猫の場合：従来通り各曜日異なるテーマ
+        weekly_schedule = {
+            '月曜': [available_themes[0] if available_themes else '猫の健康管理'],
+            '火曜': [available_themes[1] if len(available_themes) > 1 else '猫の行動学'],
+            '水曜': [available_themes[2] if len(available_themes) > 2 else '猫のグルーミング'],
+            '木曜': [available_themes[3] if len(available_themes) > 3 else '猫の栄養学'],
+            '金曜': [available_themes[4] if len(available_themes) > 4 else '猫の病気予防'],
+            '土曜': [available_themes[5] if len(available_themes) > 5 else '猫のストレス管理'],
+            '日曜': [available_themes[6] if len(available_themes) > 6 else '猫の老齢ケア']
+        }
     
     return weekly_schedule
 

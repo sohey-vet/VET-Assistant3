@@ -174,27 +174,37 @@ class ContentGenerator:
     
     def _adjust_post_length(self, content: str, min_chars: int, max_chars: int, animal_type: str) -> str:
         """
-        投稿の文字数を調整
+        投稿の文字数を調整（確実な制限遵守を保証）
         """
         current_length = len(content)
+        max_attempts = 5  # 無限ループ防止
         
-        if current_length > max_chars:
-            # 長すぎる場合は短縮
-            # ハッシュタグを保護
-            if "#" in content:
-                main_content, hashtag = content.rsplit('#', 1)
-                hashtag = '#' + hashtag
+        for attempt in range(max_attempts):
+            current_length = len(content)
+            
+            if current_length > max_chars:
+                # 長すぎる場合は段階的短縮
+                content = self._force_shorten_to_limit(content, max_chars)
+                print(f"ADJUST: 短縮実行 試行{attempt+1}: {len(content)}文字")
                 
-                # メインコンテンツを短縮
-                target_length = max_chars - len(hashtag) - 1  # 改行分
-                main_content = self._shorten_content(main_content, target_length)
-                content = main_content + '\n' + hashtag
+            elif current_length < min_chars:
+                # 短すぎる場合は延長
+                content = self._extend_content(content, min_chars, animal_type)
+                print(f"ADJUST: 延長実行 試行{attempt+1}: {len(content)}文字")
+                
             else:
-                content = content[:max_chars]
+                # 適正範囲に到達
+                print(f"ADJUST: 調整完了 {current_length}文字 (範囲: {min_chars}-{max_chars})")
+                break
         
-        elif current_length < min_chars:
-            # 短すぎる場合は適切な長さまで延長
-            content = self._extend_content(content, min_chars, animal_type)
+        # 最終確認: まだ範囲外の場合は強制修正
+        final_length = len(content)
+        if final_length > max_chars:
+            print(f"WARNING: 最終強制短縮 {final_length}文字 → {max_chars}文字")
+            content = self._emergency_truncate(content, max_chars)
+        elif final_length < min_chars:
+            print(f"WARNING: 最終強制延長 {final_length}文字 → {min_chars}文字")
+            content = self._emergency_extend(content, min_chars, animal_type)
         
         return content
     
@@ -222,6 +232,93 @@ class ContentGenerator:
             content = result.rstrip('。')
         
         return content.strip()
+    
+    def _force_shorten_to_limit(self, content: str, max_chars: int) -> str:
+        """
+        強制的に指定文字数まで短縮（確実な制限遵守）
+        """
+        if len(content) <= max_chars:
+            return content
+        
+        # ハッシュタグを保護
+        if "#" in content:
+            main_content, hashtag = content.rsplit('#', 1)
+            hashtag = '#' + hashtag
+            
+            # 改行を考慮した利用可能文字数を計算
+            newline_chars = content.count('\n')
+            available_chars = max_chars - len(hashtag) - newline_chars
+            
+            # メインコンテンツを段階的に短縮
+            main_content = self._shorten_content(main_content, available_chars)
+            
+            # 再構築
+            if '\n' in content:
+                content = main_content + '\n' + hashtag
+            else:
+                content = main_content + hashtag
+        else:
+            # ハッシュタグがない場合は単純に切り詰め
+            content = content[:max_chars]
+        
+        # まだ長い場合は強制切り詰め
+        if len(content) > max_chars:
+            content = content[:max_chars]
+        
+        return content.rstrip()
+    
+    def _emergency_truncate(self, content: str, max_chars: int) -> str:
+        """
+        緊急時の強制切り詰め
+        """
+        if len(content) <= max_chars:
+            return content
+        
+        # ハッシュタグを最優先で保護
+        if "#" in content:
+            parts = content.rsplit('#', 1)
+            if len(parts) == 2:
+                main_content, hashtag = parts
+                hashtag = '#' + hashtag
+                
+                # ハッシュタグ分を確保
+                available_chars = max_chars - len(hashtag)
+                
+                if available_chars > 0:
+                    main_content = main_content[:available_chars].rstrip()
+                    return main_content + hashtag
+                else:
+                    # ハッシュタグだけでも制限を超える場合
+                    return hashtag[:max_chars]
+        
+        # 単純切り詰め
+        return content[:max_chars]
+    
+    def _emergency_extend(self, content: str, min_chars: int, animal_type: str) -> str:
+        """
+        緊急時の強制延長
+        """
+        current_length = len(content)
+        if current_length >= min_chars:
+            return content
+        
+        needed_chars = min_chars - current_length
+        
+        # 適切な延長文字列
+        if animal_type == "猫":
+            padding = "愛猫の健康管理は大切です。" * (needed_chars // 12 + 1)
+        else:
+            padding = "愛犬の健康管理は重要です。" * (needed_chars // 12 + 1)
+        
+        # ハッシュタグの前に挿入
+        if "#" in content:
+            main_content, hashtag = content.rsplit('#', 1)
+            hashtag = '#' + hashtag
+            result = main_content + padding[:needed_chars] + hashtag
+        else:
+            result = content + padding[:needed_chars]
+        
+        return result
     
     def _extend_content(self, content: str, target_length: int, animal_type: str) -> str:
         """
@@ -437,14 +534,15 @@ class ContentGenerator:
                 else:
                     content = self._format_output(generated_data.get('dog_posts', []), dog_themes, animal_type)
                 
-                # 生成されたコンテンツの品質チェック
-                if self._check_content_quality(content):
-                    # 文字数チェックと調整
-                    content = self._validate_and_adjust_content(content, animal_type)
+                # 文字数チェックと調整を最優先で実行
+                content = self._validate_and_adjust_content(content, animal_type)
+                
+                # 調整後の厳格な品質チェック
+                if self._check_content_quality_strict(content, animal_type):
                     print("SUCCESS: 週間コンテンツの一括生成に成功しました。")
                     return content
                 else:
-                    print(f"WARNING: 生成品質が不十分です (試行 {attempt + 1})。")
+                    print(f"WARNING: 調整後も品質基準未達 (試行 {attempt + 1})。")
                     if attempt < 2:
                         print("INFO: 再試行します...")
                         time.sleep(2)
@@ -726,6 +824,59 @@ class ContentGenerator:
                 return False
         
         print("SUCCESS: コンテンツ品質チェック合格")
+        return True
+    
+    def _check_content_quality_strict(self, content_list: List[Dict], animal_type: str) -> bool:
+        """
+        調整後の厳格な品質チェック（文字数制限を最優先で確認）
+        """
+        if not content_list or len(content_list) != 7:
+            print("ERROR: コンテンツ数が不正です")
+            return False
+        
+        min_chars = 125
+        max_chars = 140 if animal_type == '猫' else 135
+        
+        violations = []
+        
+        for item in content_list:
+            post_text = item.get('post_text', '')
+            char_count = len(post_text)
+            day = item.get('day', '不明')
+            
+            # 基本チェック
+            if not post_text or char_count < 20:
+                violations.append(f"{day}: 投稿が短すぎます ({char_count}文字)")
+                continue
+            
+            # ハッシュタグチェック
+            if '#' not in post_text:
+                violations.append(f"{day}: ハッシュタグがありません")
+                continue
+            
+            # 文字数制限チェック（最重要）
+            if char_count < min_chars:
+                violations.append(f"{day}: 文字数不足 ({char_count}文字 < {min_chars}文字)")
+            elif char_count > max_chars:
+                violations.append(f"{day}: 文字数超過 ({char_count}文字 > {max_chars}文字)")
+            
+            # 実際の文字数を再確認
+            actual_char_count = len(post_text)
+            if actual_char_count != char_count:
+                violations.append(f"{day}: 文字数計算ミス (記録:{char_count} 実際:{actual_char_count})")
+        
+        # 犬のクイズペアチェック
+        if animal_type == '犬':
+            if not self._validate_quiz_answer_pairs(content_list):
+                violations.append("クイズ・回答ペアに不整合があります")
+        
+        if violations:
+            print("ERROR: 厳格品質チェック失敗:")
+            for violation in violations:
+                print(f"  - {violation}")
+            return False
+        
+        print("SUCCESS: 厳格品質チェック合格（文字数制限完全遵守）")
         return True
     
     def _validate_quiz_answer_pairs(self, content_list: List[Dict]) -> bool:

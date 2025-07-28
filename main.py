@@ -26,7 +26,7 @@ def main():
     """
     メイン実行関数
     """
-    print("🤖 VET-Assistant3 起動中...")
+    print("VET-Assistant3 起動中...")
     print("=" * 50)
     
     # 環境変数チェック
@@ -40,13 +40,13 @@ def main():
             missing_vars.append(var)
     
     if missing_vars:
-        print("⚠️ 必要な環境変数が設定されていません:")
+        print("WARNING: 必要な環境変数が設定されていません:")
         for var in missing_vars:
             print(f"   - {var}")
         print("\n.envファイルを確認してください。")
         print("Gemini APIキーなしでもデータ分析は可能です。")
     else:
-        print("✅ 環境変数チェック完了")
+        print("SUCCESS: 環境変数チェック完了")
     
     # コマンドライン引数の処理
     if len(sys.argv) > 1:
@@ -68,7 +68,7 @@ def main():
         elif command == "schedule":
             run_scheduler()
         else:
-            print(f"❌ 不明なコマンド: {command}")
+            print(f"ERROR: 不明なコマンド: {command}")
             show_help()
     else:
         # デフォルトは週間コンテンツ生成
@@ -105,46 +105,46 @@ def run_tests():
     """
     システムテストを実行
     """
-    print("\n🧪 VET-Assistant3 システムテスト開始")
+    print("\nTEST: VET-Assistant3 システムテスト開始")
     print("=" * 50)
     
     # 1. データ管理テスト
-    print("\n📊 データ管理テスト...")
+    print("\nDATA: データ管理テスト...")
     try:
         df = load_and_clean_tweets()
-        print(f"✅ tweets.js読み込み成功: {len(df)}件")
+        print(f"SUCCESS: tweets.js読み込み成功: {len(df)}件")
         
         cat_analysis = analyze_recent_themes(df, '猫')
         dog_analysis = analyze_recent_themes(df, '犬')
-        print(f"✅ 分析完了 - 猫: {len(cat_analysis['themes'])}テーマ, 犬: {len(dog_analysis['themes'])}テーマ")
+        print(f"SUCCESS: 分析完了 - 猫: {len(cat_analysis['themes'])}テーマ, 犬: {len(dog_analysis['themes'])}テーマ")
     except Exception as e:
-        print(f"❌ データ管理テスト失敗: {e}")
+        print(f"ERROR: データ管理テスト失敗: {e}")
     
     # 2. コンテンツ生成テスト
-    print("\n📝 コンテンツ生成テスト...")
+    print("\nINFO: コンテンツ生成テスト...")
     try:
         generator = ContentGenerator()
         cat_post = generator.generate_cat_post("猫の健康管理", "月曜")
         dog_post = generator.generate_dog_post("犬の健康管理", "月曜")
-        print(f"✅ 猫投稿生成成功: {len(cat_post)}文字")
-        print(f"✅ 犬投稿生成成功: {len(dog_post)}文字")
+        print(f"SUCCESS: 猫投稿生成成功: {len(cat_post)}文字")
+        print(f"SUCCESS: 犬投稿生成成功: {len(dog_post)}文字")
         
         # 文字数チェック
         if 125 <= len(cat_post) <= 140:
-            print(f"✅ 猫投稿文字数OK: {len(cat_post)}文字")
+            print(f"SUCCESS: 猫投稿文字数OK: {len(cat_post)}文字")
         else:
-            print(f"⚠️ 猫投稿文字数範囲外: {len(cat_post)}文字 (125-140字)")
+            print(f"WARNING: 猫投稿文字数範囲外: {len(cat_post)}文字 (125-140字)")
             
         if 125 <= len(dog_post) <= 135:
-            print(f"✅ 犬投稿文字数OK: {len(dog_post)}文字")
+            print(f"SUCCESS: 犬投稿文字数OK: {len(dog_post)}文字")
         else:
-            print(f"⚠️ 犬投稿文字数範囲外: {len(dog_post)}文字 (125-135字)")
+            print(f"WARNING: 犬投稿文字数範囲外: {len(dog_post)}文字 (125-135字)")
         
     except Exception as e:
-        print(f"❌ コンテンツ生成テスト失敗: {e}")
+        print(f"ERROR: コンテンツ生成テスト失敗: {e}")
     
     # 3. CSV出力テスト
-    print("\n📄 CSV出力テスト...")
+    print("\nCSV: CSV出力テスト...")
     try:
         exporter = CSVExporter()
         test_data = [{
@@ -158,20 +158,20 @@ def run_tests():
         }]
         output_path = exporter.export_weekly_posts(test_data, "test")
         if output_path:
-            print(f"✅ CSV出力成功: {output_path}")
+            print(f"SUCCESS: CSV出力成功: {output_path}")
         else:
-            print("❌ CSV出力失敗")
+            print("ERROR: CSV出力失敗")
     except Exception as e:
-        print(f"❌ CSV出力テスト失敗: {e}")
+        print(f"ERROR: CSV出力テスト失敗: {e}")
     
-    print("\n🏁 システムテスト完了")
+    print("\nFINISH: システムテスト完了")
 
 
 def generate_weekly_content():
     """
     週間コンテンツを生成
     """
-    print("\n📝 週間コンテンツ生成開始")
+    print("\nINFO: 週間コンテンツ生成開始")
     print("=" * 50)
     
     try:
@@ -179,21 +179,21 @@ def generate_weekly_content():
         csv_path, schedule_path = scheduler.generate_weekly_content()
         
         if csv_path and schedule_path:
-            print(f"\n✅ 週間コンテンツ生成完了!")
-            print(f"📄 投稿データ: {csv_path}")
+            print(f"\nSUCCESS: 週間コンテンツ生成完了!")
+            print(f"CSV: 投稿データ: {csv_path}")
             print(f"📅 スケジュール: {schedule_path}")
         else:
-            print("❌ 週間コンテンツ生成に失敗しました")
+            print("ERROR: 週間コンテンツ生成に失敗しました")
             
     except Exception as e:
-        print(f"❌ 週間コンテンツ生成エラー: {e}")
+        print(f"ERROR: 週間コンテンツ生成エラー: {e}")
 
 
 def generate_daily_content(animal_type: str):
     """
     今日分のコンテンツを生成
     """
-    print(f"\n📝 {animal_type}の今日分コンテンツ生成開始")
+    print(f"\nINFO: {animal_type}の今日分コンテンツ生成開始")
     print("=" * 50)
     
     try:
@@ -201,26 +201,26 @@ def generate_daily_content(animal_type: str):
         content, csv_path = scheduler.generate_daily_content(animal_type)
         
         if content and csv_path:
-            print(f"\n✅ {animal_type}コンテンツ生成完了!")
-            print(f"📄 CSV出力: {csv_path}")
-            print(f"📝 生成内容:\n{content}")
+            print(f"\nSUCCESS: {animal_type}コンテンツ生成完了!")
+            print(f"CSV: CSV出力: {csv_path}")
+            print(f"INFO: 生成内容:\n{content}")
         else:
-            print(f"❌ {animal_type}コンテンツ生成に失敗しました")
+            print(f"ERROR: {animal_type}コンテンツ生成に失敗しました")
             
     except Exception as e:
-        print(f"❌ {animal_type}コンテンツ生成エラー: {e}")
+        print(f"ERROR: {animal_type}コンテンツ生成エラー: {e}")
 
 
 def analyze_past_posts():
     """
     過去投稿の分析を実行
     """
-    print("\n📊 過去投稿分析開始")
+    print("\nDATA: 過去投稿分析開始")
     print("=" * 50)
     
     try:
         df = load_and_clean_tweets()
-        print(f"📊 読み込み完了: {len(df)}件の投稿")
+        print(f"DATA: 読み込み完了: {len(df)}件の投稿")
         
         # 猫の分析
         print("\n🐱 猫投稿分析...")
@@ -239,12 +239,12 @@ def analyze_past_posts():
         cat_csv = exporter.export_content_analysis(cat_analysis, '猫')
         dog_csv = exporter.export_content_analysis(dog_analysis, '犬')
         
-        print(f"\n✅ 分析結果CSV出力完了:")
+        print(f"\nSUCCESS: 分析結果CSV出力完了:")
         print(f"   🐱 猫: {cat_csv}")
         print(f"   🐕 犬: {dog_csv}")
         
     except Exception as e:
-        print(f"❌ 分析エラー: {e}")
+        print(f"ERROR: 分析エラー: {e}")
 
 
 def run_scheduler():
@@ -261,7 +261,7 @@ def run_scheduler():
     except KeyboardInterrupt:
         print("\n\n⏹️ スケジューラーを停止しました")
     except Exception as e:
-        print(f"❌ スケジューラーエラー: {e}")
+        print(f"ERROR: スケジューラーエラー: {e}")
 
 
 if __name__ == "__main__":

@@ -21,38 +21,38 @@ class VETScheduler:
         self.csv_exporter = CSVExporter()
         self.output_dir = "出力"
         
-        print("🤖 VET-Assistant3 コンテンツ生成システム起動")
+        print("BOT: VET-Assistant3 コンテンツ生成システム起動")
         
         # Gemini API接続確認
         try:
             # 簡単なテスト生成で接続確認
             test_response = self.content_generator.generate_cat_post("テスト", "月曜")
             if "テスト" in test_response or len(test_response) > 10:
-                print("✅ Gemini API接続確認完了")
+                print("SUCCESS: Gemini API接続確認完了")
             else:
-                print("⚠️ Gemini APIの動作に問題がある可能性があります")
+                print("WARNING: Gemini APIの動作に問題がある可能性があります")
         except Exception as e:
-            print(f"⚠️ Gemini API接続確認エラー: {e}")
+            print(f"WARNING: Gemini API接続確認エラー: {e}")
     
     def generate_weekly_content(self):
         """
         1週間分のコンテンツを生成してCSVに出力
         """
         try:
-            print("\n📝 週間コンテンツ生成開始...")
+            print("\nINFO: 週間コンテンツ生成開始...")
             
             from modules.data_manager import load_and_clean_tweets
             
             # 過去の投稿データを読み込み
             tweets_df = load_and_clean_tweets()
-            print(f"📊 過去の投稿データ読み込み: {len(tweets_df)}件")
+            print(f"DATA: 過去の投稿データ読み込み: {len(tweets_df)}件")
             
             # 猫と犬のコンテンツを生成
             cat_content = self.content_generator.generate_weekly_content('猫', tweets_df)
             dog_content = self.content_generator.generate_weekly_content('犬', tweets_df)
             
-            print(f"✅ 猫コンテンツ生成: {len(cat_content)}件")
-            print(f"✅ 犬コンテンツ生成: {len(dog_content)}件")
+            print(f"SUCCESS: 猫コンテンツ生成: {len(cat_content)}件")
+            print(f"SUCCESS: 犬コンテンツ生成: {len(dog_content)}件")
             
             # CSVファイルに出力
             next_monday = datetime.now() + timedelta(days=(7 - datetime.now().weekday()))
@@ -62,14 +62,14 @@ class VETScheduler:
             csv_path = self.csv_exporter.export_combined_posts(cat_content, dog_content, filename_prefix)
             schedule_path = self.csv_exporter.export_posting_schedule(cat_content + dog_content, filename_prefix)
             
-            print(f"✅ 週間コンテンツCSV出力完了:")
+            print(f"SUCCESS: 週間コンテンツCSV出力完了:")
             print(f"   📄 投稿データ: {csv_path}")
             print(f"   📅 スケジュール: {schedule_path}")
             
             return csv_path, schedule_path
             
         except Exception as e:
-            print(f"❌ 週間コンテンツ生成エラー: {e}")
+            print(f"ERROR: 週間コンテンツ生成エラー: {e}")
             return None, None
     
     def generate_daily_content(self, animal_type: str):
@@ -77,7 +77,7 @@ class VETScheduler:
         今日分のコンテンツを生成
         """
         try:
-            print(f"\n📝 {animal_type}の今日分コンテンツ生成開始...")
+            print(f"\nINFO: {animal_type}の今日分コンテンツ生成開始...")
             
             from modules.data_manager import load_and_clean_tweets, analyze_recent_themes
             
@@ -103,7 +103,7 @@ class VETScheduler:
             else:
                 content = self.content_generator.generate_dog_post(theme, day_of_week, recent_analysis)
             
-            print(f"✅ {animal_type}コンテンツ生成完了:")
+            print(f"SUCCESS: {animal_type}コンテンツ生成完了:")
             print(f"   テーマ: {theme}")
             print(f"   文字数: {len(content)}文字")
             print(f"   内容: {content[:50]}...")
@@ -122,12 +122,12 @@ class VETScheduler:
             filename = f"{current_time.strftime('%Y-%m-%d')}_{animal_type}_daily"
             csv_path = self.csv_exporter.export_weekly_posts(today_data, filename)
             
-            print(f"✅ 今日分CSV出力完了: {csv_path}")
+            print(f"SUCCESS: 今日分CSV出力完了: {csv_path}")
             
             return content, csv_path
             
         except Exception as e:
-            print(f"❌ 今日分コンテンツ生成エラー: {e}")
+            print(f"ERROR: 今日分コンテンツ生成エラー: {e}")
             return None, None
     
     def setup_weekly_schedule(self):
@@ -144,7 +144,7 @@ class VETScheduler:
         """
         print("\n🚀 VET-Assistant3 週間コンテンツ生成スケジューラー開始")
         print("⏰ スケジュール:")
-        print("   📝 週間コンテンツ生成: 毎週日曜日 20:00")
+        print("   INFO: 週間コンテンツ生成: 毎週日曜日 20:00")
         print("\n終了するには Ctrl+C を押してください\n")
         
         while True:
@@ -164,7 +164,7 @@ class VETScheduler:
         print("\n=== 犬コンテンツテスト ===")
         dog_content, dog_csv = self.generate_daily_content('犬')
         
-        print(f"\n📊 テスト結果:")
+        print(f"\nDATA: テスト結果:")
         print(f"   🐱 猫: {'成功' if cat_content else '失敗'}")
         print(f"   🐕 犬: {'成功' if dog_content else '失敗'}")
         

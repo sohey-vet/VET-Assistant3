@@ -170,7 +170,74 @@ class ContentGenerator:
         content = re.sub(r"\n{3,}", "\n\n", content)
         content = content.strip()
         
+        # 完結性チェックと修正
+        content = self._ensure_content_completeness(content)
+        
         return content
+    
+    def _ensure_content_completeness(self, content: str) -> str:
+        """
+        コンテンツの完結性を確認し、中途半端な文章を修正
+        """
+        # ハッシュタグを分離
+        if "#" in content:
+            main_content, hashtag = content.rsplit('#', 1)
+            hashtag = '#' + hashtag
+        else:
+            main_content = content
+            hashtag = ""
+        
+        # 中途半端な文章パターンをチェック
+        incomplete_patterns = [
+            r"[^。！？]$",  # 句読点で終わっていない
+            r"。[^。！？#\s]*$",  # 最後の文が途中で終わっている
+            r"、[^、。！？]*$",  # 読点で終わっている
+            r"は[^。！？]*$",  # 「は」で終わって続きがない
+            r"が[^。！？]*$",  # 「が」で終わって続きがない
+            r"を[^。！？]*$",  # 「を」で終わって続きがない
+            r"に[^。！？]*$",  # 「に」で終わって続きがない
+        ]
+        
+        main_text = main_content.strip()
+        
+        # 中途半端な文章をチェック
+        for pattern in incomplete_patterns:
+            if re.search(pattern, main_text):
+                print(f"WARNING: 中途半端な文章を検出: {main_text[-20:]}")
+                # 適切な終了形に修正
+                main_text = self._fix_incomplete_sentence(main_text)
+                break
+        
+        # 再構築
+        if hashtag:
+            return main_text + "\n\n" + hashtag
+        else:
+            return main_text
+    
+    def _fix_incomplete_sentence(self, text: str) -> str:
+        """
+        中途半端な文章を適切に修正
+        """
+        # 最後の完全な文を見つける
+        sentences = re.split(r'[。！？]', text)
+        if len(sentences) > 1:
+            # 最後の不完全な部分を削除し、適切な文で終わらせる
+            complete_part = '。'.join(sentences[:-1])
+            if complete_part:
+                # 健康管理に関する汎用的な結び文を追加
+                return complete_part + "。早期発見・早期治療が大切です"
+        
+        # 全体が不完全な場合は、基本的な結び文を追加
+        if not text.endswith(('。', '！', '？')):
+            # 助詞で終わっている場合は適切に修正
+            if text.endswith(('は', 'が', 'を', 'に', 'で', 'から', 'まで')):
+                text = text[:-1] + "ことが重要です。"
+            elif text.endswith('、'):
+                text = text[:-1] + "。"
+            else:
+                text += "。"
+        
+        return text
     
     def _adjust_post_length(self, content: str, min_chars: int, max_chars: int, animal_type: str) -> str:
         """
@@ -580,23 +647,24 @@ class ContentGenerator:
     def _format_output(self, posts_data: List[Dict], themes: List[str], animal_type: str) -> List[Dict]:
         """
         APIからの出力を既存のデータ構造に変換するヘルパー関数
+        指示した次の月曜日から日曜日までの一週間分を生成
         """
         content_list = []
         days = ['月曜', '火曜', '水曜', '木曜', '金曜', '土曜', '日曜']
         
+        # 次の月曜日を取得
+        today = datetime.now()
+        current_weekday = today.weekday()  # 月曜=0, 日曜=6
+        
+        if current_weekday == 0:  # 今日が月曜日の場合
+            next_monday = today
+        else:  # 今日が月曜日以外の場合は次の月曜日
+            days_until_next_monday = 7 - current_weekday
+            next_monday = today + timedelta(days=days_until_next_monday)
+        
         for i, post_item in enumerate(posts_data):
-            # 投稿日時の計算（今週または来週の該当曜日）
-            today = datetime.now()
-            current_weekday = today.weekday()  # 月曜=0, 日曜=6
-            target_weekday = i  # 月曜=0, 火曜=1, ..., 日曜=6
-            
-            # 今週の月曜日を基準とする
-            this_monday = today - timedelta(days=current_weekday)
-            post_date = this_monday + timedelta(days=target_weekday)
-            
-            # もし計算した日付が過去の場合は来週にする
-            if post_date < today:
-                post_date += timedelta(days=7)
+            # 次の月曜日から順番に日付を設定
+            post_date = next_monday + timedelta(days=i)
             
             content_list.append({
                 'date': post_date.strftime('%Y-%m-%d'),
@@ -893,30 +961,99 @@ class ContentGenerator:
             thursday_post = content_list[3]['post_text']   # 木曜
             
             # 月曜がクイズ形式か確認
-            if not ('クイズ' in monday_post and ('A.' in monday_post or '①' in monday_post)):
+            if not self._is_valid_quiz_format(monday_post):
                 print("WARNING: 月曜の投稿がクイズ形式ではありません")
                 return False
             
             # 火曜が回答形式か確認
-            if not ('答え' in tuesday_post and ('正解' in tuesday_post or '解答' in tuesday_post)):
+            if not self._is_valid_answer_format(tuesday_post):
                 print("WARNING: 火曜の投稿が回答形式ではありません")
                 return False
             
             # 水曜がクイズ形式か確認
-            if not ('クイズ' in wednesday_post and ('A.' in wednesday_post or '①' in wednesday_post)):
+            if not self._is_valid_quiz_format(wednesday_post):
                 print("WARNING: 水曜の投稿がクイズ形式ではありません")
                 return False
             
             # 木曜が回答形式か確認
-            if not ('答え' in thursday_post and ('正解' in thursday_post or '解答' in thursday_post)):
+            if not self._is_valid_answer_format(thursday_post):
                 print("WARNING: 木曜の投稿が回答形式ではありません")
                 return False
             
-            print("SUCCESS: クイズ・回答ペアの形式チェック合格")
+            # クイズ・回答の論理的一貫性をチェック
+            if not self._check_quiz_answer_consistency(monday_post, tuesday_post):
+                print("WARNING: 月曜・火曜のクイズ・回答に不整合があります")
+                return False
+            
+            if not self._check_quiz_answer_consistency(wednesday_post, thursday_post):
+                print("WARNING: 水曜・木曜のクイズ・回答に不整合があります")
+                return False
+            
+            print("SUCCESS: クイズ・回答ペアの形式・一貫性チェック合格")
             return True
             
         except Exception as e:
             print(f"ERROR: クイズ・回答ペア検証中にエラー: {e}")
+            return False
+    
+    def _is_valid_quiz_format(self, post_text: str) -> bool:
+        """
+        クイズ形式の妥当性をチェック
+        """
+        # 必須要素のチェック
+        has_quiz_title = 'クイズ' in post_text
+        has_choices = bool(re.search(r'[ABC][.．]|[①②③]', post_text))
+        has_tomorrow_hint = '明日' in post_text or '答え' in post_text
+        
+        # 完結性チェック
+        is_complete = post_text.endswith(('！', '。', '？'))
+        
+        return has_quiz_title and has_choices and has_tomorrow_hint and is_complete
+    
+    def _is_valid_answer_format(self, post_text: str) -> bool:
+        """
+        回答形式の妥当性をチェック
+        """
+        # 必須要素のチェック
+        has_answer_title = '答え' in post_text or '解答' in post_text or '正解' in post_text
+        has_correct_answer = bool(re.search(r'正解は[ABC]|答えは[ABC]|[①②③]でした', post_text))
+        has_explanation = len(post_text) > 80  # 説明が含まれているかの簡易チェック
+        
+        # 完結性チェック
+        is_complete = post_text.endswith(('！', '。', '？'))
+        
+        return has_answer_title and has_correct_answer and has_explanation and is_complete
+    
+    def _check_quiz_answer_consistency(self, quiz_post: str, answer_post: str) -> bool:
+        """
+        クイズと回答の論理的一貫性をチェック
+        """
+        try:
+            # クイズから選択肢を抽出
+            quiz_choices = re.findall(r'[ABC][.．]\s*([^ABC\n]+)', quiz_post)
+            
+            # 回答から正解を抽出
+            answer_match = re.search(r'正解は([ABC])|答えは([ABC])', answer_post)
+            if not answer_match:
+                return False
+            
+            correct_choice = answer_match.group(1) or answer_match.group(2)
+            
+            # 選択肢が3つあるかチェック
+            if len(quiz_choices) < 2:  # 最低2つの選択肢
+                print(f"WARNING: 選択肢が不足しています: {len(quiz_choices)}個")
+                return False
+            
+            # 正解が有効な選択肢内にあるかチェック
+            choice_index = ord(correct_choice) - ord('A')
+            if choice_index >= len(quiz_choices):
+                print(f"WARNING: 正解{correct_choice}が選択肢範囲外です")
+                return False
+            
+            return True
+            
+        except Exception as e:
+            print(f"ERROR: クイズ・回答一貫性チェック中にエラー: {e}")
             return False
     
     def _generate_fallback_weekly_content(self, animal_type: str, themes: List[str]) -> List[Dict]:
@@ -929,16 +1066,17 @@ class ContentGenerator:
         days = ['月曜', '火曜', '水曜', '木曜', '金曜', '土曜', '日曜']
         
         for i, day in enumerate(days):
-            # 投稿日時の計算
+            # 投稿日時の計算（次の月曜日から一週間分）
             today = datetime.now()
-            current_weekday = today.weekday()
-            target_weekday = i
+            current_weekday = today.weekday()  # 月曜=0, 日曜=6
             
-            this_monday = today - timedelta(days=current_weekday)
-            post_date = this_monday + timedelta(days=target_weekday)
+            if current_weekday == 0:  # 今日が月曜日の場合
+                next_monday = today
+            else:  # 今日が月曜日以外の場合は次の月曜日
+                days_until_next_monday = 7 - current_weekday
+                next_monday = today + timedelta(days=days_until_next_monday)
             
-            if post_date < today:
-                post_date += timedelta(days=7)
+            post_date = next_monday + timedelta(days=i)
             
             # テーマの決定
             theme = themes[i] if i < len(themes) else ('猫の健康管理' if animal_type == '猫' else '犬の健康管理')

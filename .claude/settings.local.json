@@ -8,7 +8,17 @@
       "Bash(pip install:*)",
       "Bash(git init:*)",
       "Bash(git remote add:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git push:*)",
+      "Bash(chcp:*)",
+      "Bash(export PYTHONIOENCODING=utf-8)",
+      "WebFetch(domain:ai.google.dev)",
+      "Bash(timeout:*)",
+      "Bash(rm:*)",
+      "Bash(set PYTHONIOENCODING=utf-8)",
+      "Bash(ls:*)",
+      "Bash(git checkout:*)",
+      "Bash(git reset:*)"
     ],
     "deny": []
   }

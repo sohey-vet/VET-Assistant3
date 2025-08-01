@@ -10,16 +10,19 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from modules.content_generator import ContentGenerator
 from modules.csv_exporter import CSVExporter
+from modules.twitter_poster import TwitterPoster
 
 
 class VETScheduler:
     def __init__(self):
         """
-        VET-Assistant3スケジューラーの初期化（コンテンツ生成専用）
+        VET-Assistant3スケジューラーの初期化（コンテンツ生成+投稿）
         """
         self.content_generator = ContentGenerator()
         self.csv_exporter = CSVExporter()
+        self.twitter_poster = TwitterPoster()
         self.output_dir = "出力"
+        self.posted_tweets = set()  # 投稿済みツイートを記録
         
         print("BOT: VET-Assistant3 コンテンツ生成システム起動")
         
@@ -169,6 +172,134 @@ class VETScheduler:
         print(f"   🐕 犬: {'成功' if dog_content else '失敗'}")
         
         return cat_content, dog_content
+    
+    def load_csv_schedule(self, csv_path: str):
+        """
+        CSVファイルから投稿スケジュールを読み込み
+        """
+        try:
+            if not os.path.exists(csv_path):
+                print(f"ERROR: CSVファイルが見つかりません: {csv_path}")
+                return False
+            
+            df = pd.read_csv(csv_path)
+            print(f"INFO: CSVファイル読み込み成功: {len(df)}件の投稿予定")
+            
+            # 各投稿をスケジュールに登録
+            for index, row in df.iterrows():
+                try:
+                    date_str = row['date']
+                    time_str = row['scheduled_time']
+                    post_text = row['post_text']
+                    
+                    # 日付と時間をパース
+                    post_datetime = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
+                    
+                    # 今より未来の投稿のみスケジュール
+                    if post_datetime > datetime.now():
+                        # 毎日の該当時間に投稿をスケジュール
+                        schedule.every().day.at(time_str).do(
+                            self.post_scheduled_tweet,
+                            post_text=post_text,
+                            target_date=date_str,
+                            row_id=f"{date_str}_{time_str}_{index}"
+                        )
+                        print(f"SCHEDULE: {date_str} {time_str} - {post_text[:30]}...")
+                    else:
+                        print(f"SKIP: 過去の投稿のためスキップ - {date_str} {time_str}")
+                        
+                except Exception as e:
+                    print(f"WARNING: 行{index+1}のスケジュール登録エラー: {e}")
+                    continue
+            
+            return True
+            
+        except Exception as e:
+            print(f"ERROR: CSV読み込みエラー: {e}")
+            return False
+    
+    def post_scheduled_tweet(self, post_text: str, target_date: str, row_id: str):
+        """
+        スケジュールされた投稿を実行
+        """
+        try:
+            # 今日の日付と投稿予定日が一致するかチェック
+            today = datetime.now().strftime('%Y-%m-%d')
+            if today != target_date:
+                return  # 投稿日でない場合はスキップ
+            
+            # 既に投稿済みかチェック
+            if row_id in self.posted_tweets:
+                print(f"SKIP: 既に投稿済み - {row_id}")
+                return
+            
+            # Twitter投稿実行
+            success, tweet_id = self.twitter_poster.post_tweet(post_text)
+            
+            if success:
+                self.posted_tweets.add(row_id)
+                print(f"SUCCESS: 投稿完了 - ID: {tweet_id}")
+                print(f"CONTENT: {post_text[:50]}...")
+                
+                # 投稿記録をファイルに保存
+                self.save_posted_record(row_id, tweet_id, post_text)
+            else:
+                print(f"ERROR: 投稿失敗 - {post_text[:30]}...")
+                
+        except Exception as e:
+            print(f"ERROR: 投稿実行エラー: {e}")
+    
+    def save_posted_record(self, row_id: str, tweet_id: str, post_text: str):
+        """
+        投稿記録をファイルに保存
+        """
+        try:
+            record_file = os.path.join(self.output_dir, "posted_tweets.csv")
+            
+            # ファイルが存在しない場合はヘッダーを作成
+            if not os.path.exists(record_file):
+                with open(record_file, 'w', encoding='utf-8') as f:
+                    f.write("timestamp,row_id,tweet_id,post_text\n")
+            
+            # 投稿記録を追記
+            with open(record_file, 'a', encoding='utf-8', newline='') as f:
+                timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                # CSVエスケープ処理
+                escaped_text = post_text.replace('"', '""')
+                f.write(f'{timestamp},{row_id},{tweet_id},"{escaped_text}"\n')
+                
+        except Exception as e:
+            print(f"WARNING: 投稿記録保存エラー: {e}")
+    
+    def run_csv_scheduler(self, csv_path: str):
+        """
+        CSVファイルに基づく予約投稿スケジューラーを実行
+        """
+        print(f"\nCSV予約投稿スケジューラー開始")
+        print(f"CSVファイル: {csv_path}")
+        
+        # CSVからスケジュールを読み込み
+        if not self.load_csv_schedule(csv_path):
+            return
+        
+        # Twitter API接続テスト
+        if not self.twitter_poster.test_connection():
+            print("ERROR: Twitter API接続に失敗しました")
+            return
+        
+        print("\n予約投稿スケジューラー実行中...")
+        print("終了するには Ctrl+C を押してください\n")
+        
+        while True:
+            try:
+                schedule.run_pending()
+                time.sleep(30)  # 30秒間隔でチェック
+            except KeyboardInterrupt:
+                print("\nスケジューラーを終了しました")
+                break
+            except Exception as e:
+                print(f"WARNING: スケジューラーエラー: {e}")
+                time.sleep(60)  # エラー時は1分待機
 
 
 def main():
@@ -198,13 +329,21 @@ def main():
             # スケジュール設定して実行
             scheduler.setup_weekly_schedule()
             scheduler.run_weekly_scheduler()
+        elif command == "post":
+            # CSV予約投稿実行
+            if len(sys.argv) > 2:
+                csv_path = sys.argv[2]
+                scheduler.run_csv_scheduler(csv_path)
+            else:
+                print("使用方法: python scheduler.py post [CSVファイルパス]")
         else:
             print("使用方法:")
-            print("  python scheduler.py test           # 手動コンテンツ生成テスト")
-            print("  python scheduler.py generate       # 週間コンテンツ生成")
-            print("  python scheduler.py daily 猫       # 今日分猫コンテンツ生成")
-            print("  python scheduler.py daily 犬       # 今日分犬コンテンツ生成")
-            print("  python scheduler.py schedule       # 週間スケジューラー実行")
+            print("  python scheduler.py test              # 手動コンテンツ生成テスト")
+            print("  python scheduler.py generate          # 週間コンテンツ生成")
+            print("  python scheduler.py daily 猫          # 今日分猫コンテンツ生成")
+            print("  python scheduler.py daily 犬          # 今日分犬コンテンツ生成")
+            print("  python scheduler.py schedule          # 週間スケジューラー実行")
+            print("  python scheduler.py post [CSV]        # CSV予約投稿実行")
     else:
         # デフォルトは週間コンテンツ生成
         scheduler.generate_weekly_content()

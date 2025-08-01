@@ -1,0 +1,21 @@
+バックアップ作成日時: 2025年 8月  1日 金曜日 12:11:52    
+削除予定ファイル一覧:
+=== Pythonキャッシュファイル ===
+__pycache__/
+modules/__pycache__/
+
+=== 古いCSVファイル ===
+削除日時: 2025年 8月  1日 金曜日 12:16:22    
+2025-07-28_posts.csv
+2025-07-28_schedule.csv
+final-test_posts.csv
+sync-test_posts.csv
+test-sync_posts.csv
+test_posts.csv
+
+=== 開発・デバッグファイル（第2回削除） ===
+削除日時: 2025年 8月  1日 金曜日 12:21:04    
+fix_encoding.py
+quick_validation.py
+test_system_validation.py
+config/ (空フォルダ)

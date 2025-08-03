@@ -16,10 +16,10 @@ class ContentGenerator:
         if api_key:
             genai.configure(api_key=api_key)
         else:
-            # 環境変数が読み込めない場合の直接設定
+            # 環境変数からAPIキーを取得
             env_key = os.getenv('GEMINI_API_KEY')
             if not env_key:
-                env_key = 'AIzaSyBquQQNlpC_YnLoyyRKdo0lIptKMH4x3V8'
+                raise ValueError("GEMINI_API_KEY環境変数が設定されていません。.envファイルまたは環境変数を設定してください。")
             genai.configure(api_key=env_key)
         
         # Gemini 2.5 Pro モデルを設定
@@ -536,7 +536,7 @@ class ContentGenerator:
 - 猫: 125～140字厳守「【タイトル】\\n本文\\n\\n#猫のあれこれ」絵文字2個
 - 犬: 125～135字厳守「【タイトル】\\n本文\\n\\n#獣医が教える犬のはなし」絵文字2個
 - 文字数超過は絶対禁止
-- スマホで読みやすいように自然な改行を入れる
+- スマホで読みやすい改行：タイトル後改行、質問文は30文字程度で改行、選択肢は各行、補足は短く
 
 # 重要：クイズ・回答ペアの厳格な指示
 **犬の投稿について（最重要）:**
@@ -729,6 +729,7 @@ class ContentGenerator:
     def _format_for_mobile(self, post_text: str) -> str:
         """
         スマホで読みやすいように自然な改行を追加する
+        例文スタイルに合わせた見やすい改行パターンを適用
         """
         # ハッシュタグを分離
         if "#" in post_text:
@@ -747,46 +748,265 @@ class ContentGenerator:
             title = ""
             body = main_content.strip()
         
-        # 本文に自然な改行を追加
-        # 句読点や区切りで改行を入れる
-        formatted_body = body
-        
-        # 長い文章を適度な位置で改行
-        if len(body) > 40:
-            # 「。」「！」「？」の後に改行を追加（ただし最後ではない場合）
-            formatted_body = re.sub(r'([。！？])(?!$)', r'\1\n', body)
-            
-            # 「、」の後に適度に改行を追加（40文字以上の場合）
-            lines = formatted_body.split('\n')
-            final_lines = []
-            for line in lines:
-                if len(line) > 40:
-                    # 「、」で分割して適度な長さにする
-                    parts = line.split('、')
-                    current_line = ""
-                    for part in parts:
-                        if len(current_line + part + '、') <= 40:
-                            current_line += part + '、'
-                        else:
-                            if current_line:
-                                final_lines.append(current_line.rstrip('、'))
-                            current_line = part + '、'
-                    if current_line:
-                        final_lines.append(current_line.rstrip('、'))
-                else:
-                    final_lines.append(line)
-            formatted_body = '\n'.join(final_lines)
+        # 本文を例文スタイルに最適化
+        formatted_body = self._format_with_example_style(body)
         
         # 最終的な組み立て
         result = ""
         if title:
-            result += title + "\n"
+            result += title + "\n"  # タイトル後に1回改行
         if formatted_body:
             result += formatted_body
         if hashtag:
-            result += "\n\n" + hashtag
+            result += "\n" + hashtag  # ハッシュタグ前に1回改行
         
         return result.strip()
+    
+    def _format_with_example_style(self, text: str) -> str:
+        """
+        例文スタイルに合わせた改行フォーマット
+        - 質問文は適度な長さで改行
+        - 選択肢は各行に分ける
+        - 感情表現や補足は短い行に
+        - 呼びかけは単独行に
+        """
+        if not text:
+            return text
+        
+        # 既存の改行を一旦除去
+        text = re.sub(r'\n+', ' ', text)
+        
+        # クイズ形式の場合の特別処理
+        if self._is_quiz_format(text):
+            return self._format_quiz_style(text)
+        
+        # 通常の投稿の場合
+        return self._format_normal_style(text)
+    
+    def _is_quiz_format(self, text: str) -> bool:
+        """クイズ形式かどうかを判定"""
+        return bool(re.search(r'[ABC][.．]|[①②③]', text)) and ('？' in text or 'クイズ' in text)
+    
+    def _format_quiz_style(self, text: str) -> str:
+        """クイズ形式の改行フォーマット"""
+        # 選択肢の前で分割
+        parts = re.split(r'([ABC][.．]\s*)', text)
+        
+        formatted_parts = []
+        current_part = ""
+        
+        for i, part in enumerate(parts):
+            if re.match(r'[ABC][.．]\s*', part):
+                # 選択肢マーカーの場合
+                if current_part.strip():
+                    # 前の部分を質問文として処理
+                    formatted_parts.append(self._format_question_text(current_part.strip()))
+                    current_part = ""
+                
+                # 次の部分と結合して選択肢として処理
+                if i + 1 < len(parts):
+                    choice_text = part + parts[i + 1]
+                    formatted_parts.append(choice_text.strip())
+                    parts[i + 1] = ""  # 処理済みマーク
+            elif part and not re.match(r'[ABC][.．]\s*', part) and part.strip():
+                current_part += part
+        
+        # 残りの部分（選択肢後の補足など）を処理
+        if current_part.strip():
+            formatted_parts.append(self._format_supplementary_text(current_part.strip()))
+        
+        return '\n'.join([p for p in formatted_parts if p.strip()])
+    
+    def _format_question_text(self, text: str) -> str:
+        """質問文を適度な長さで改行"""
+        # 30文字程度で改行
+        if len(text) <= 35:
+            return text
+        
+        # 句読点や疑問符で改行
+        text = re.sub(r'([。！？])(?!$)', r'\1\n', text)
+        
+        # まだ長い行があれば分割
+        lines = text.split('\n')
+        result_lines = []
+        
+        for line in lines:
+            if len(line) > 35:
+                # 適切な分割点を探す
+                split_pos = self._find_best_split_position(line, 30)
+                if split_pos > 0:
+                    result_lines.append(line[:split_pos].rstrip())
+                    remaining = line[split_pos:].lstrip()
+                    if remaining:
+                        result_lines.append(remaining)
+                else:
+                    result_lines.append(line)
+            else:
+                result_lines.append(line)
+        
+        return '\n'.join(result_lines)
+    
+    def _format_supplementary_text(self, text: str) -> str:
+        """補足文や感情表現を短い行に分割"""
+        # 感嘆符や疑問符で改行
+        text = re.sub(r'([！？])(?!$)', r'\1\n', text)
+        
+        # 25文字程度で適度に改行
+        lines = text.split('\n')
+        result_lines = []
+        
+        for line in lines:
+            line = line.strip()
+            if len(line) <= 30:
+                result_lines.append(line)
+            else:
+                # 短めに分割
+                split_pos = self._find_best_split_position(line, 25)
+                if split_pos > 0:
+                    result_lines.append(line[:split_pos].rstrip())
+                    remaining = line[split_pos:].lstrip()
+                    if remaining:
+                        result_lines.extend(self._format_supplementary_text(remaining).split('\n'))
+                else:
+                    result_lines.append(line)
+        
+        return '\n'.join([line for line in result_lines if line.strip()])
+    
+    def _format_normal_style(self, text: str) -> str:
+        """通常投稿の改行フォーマット"""
+        # 文末記号の後で改行
+        text = re.sub(r'([。！？])(?!$)', r'\1\n', text)
+        
+        lines = text.split('\n')
+        result_lines = []
+        
+        for line in lines:
+            line = line.strip()
+            if len(line) <= 30:
+                result_lines.append(line)
+            else:
+                # 30文字を超える場合は分割
+                split_pos = self._find_best_split_position(line, 25)
+                if split_pos > 0:
+                    result_lines.append(line[:split_pos].rstrip())
+                    remaining = line[split_pos:].lstrip()
+                    if remaining:
+                        result_lines.extend(self._format_normal_style(remaining).split('\n'))
+                else:
+                    result_lines.append(line)
+        
+        return '\n'.join([line for line in result_lines if line.strip()])
+    
+    def _find_best_split_position(self, text: str, target_length: int) -> int:
+        """最適な分割位置を見つける"""
+        if len(text) <= target_length:
+            return 0
+        
+        # 分割候補の優先順位
+        split_candidates = []
+        
+        # 句読点での分割（最優先）
+        for i in range(max(0, target_length - 10), min(len(text), target_length + 10)):
+            if text[i] in '、。！？':
+                split_candidates.append((i + 1, 1))
+        
+        # 助詞での分割
+        for i in range(max(0, target_length - 5), min(len(text), target_length + 5)):
+            if text[i] in 'はがをにでから':
+                split_candidates.append((i + 1, 2))
+        
+        # スペースでの分割
+        for i in range(max(0, target_length - 5), min(len(text), target_length + 5)):
+            if text[i] == ' ':
+                split_candidates.append((i + 1, 3))
+        
+        if split_candidates:
+            # 優先度順、目標長さに近い順でソート
+            split_candidates.sort(key=lambda x: (x[1], abs(x[0] - target_length)))
+            return split_candidates[0][0]
+        
+        return target_length
+    
+    def _optimize_text_for_mobile(self, text: str) -> str:
+        """
+        テキストをスマホ向けに最適化（20-30文字で自然な改行）
+        """
+        if not text:
+            return text
+        
+        # 既存の改行を一旦除去
+        text = re.sub(r'\n+', ' ', text)
+        
+        # 文末記号の後で必ず改行
+        text = re.sub(r'([。！？])(?!$)', r'\1\n', text)
+        
+        lines = text.split('\n')
+        optimized_lines = []
+        
+        for line in lines:
+            line = line.strip()
+            if len(line) <= 30:
+                # 30文字以下はそのまま
+                optimized_lines.append(line)
+            else:
+                # 30文字を超える場合は分割
+                optimized_lines.extend(self._split_long_line(line))
+        
+        # 空行を除去し、適切な改行を追加
+        result_lines = []
+        for line in optimized_lines:
+            if line.strip():
+                result_lines.append(line)
+        
+        return '\n'.join(result_lines)
+    
+    def _split_long_line(self, line: str) -> List[str]:
+        """
+        長い行を自然な位置で分割（20-30文字目安）
+        """
+        if len(line) <= 30:
+            return [line]
+        
+        # 分割の優先順位：「、」 > スペース > 文字境界
+        split_points = []
+        
+        # 読点「、」の位置を記録
+        for i, char in enumerate(line):
+            if char == '、' and 15 <= i <= 35:  # 適度な位置の読点
+                split_points.append((i + 1, 1))  # 位置, 優先度
+        
+        # 自然な区切り文字の位置を記録
+        for i, char in enumerate(line):
+            if char in 'はがをにでとから' and 20 <= i <= 30:
+                split_points.append((i + 1, 2))
+        
+        # スペースの位置を記録
+        for i, char in enumerate(line):
+            if char == ' ' and 15 <= i <= 35:
+                split_points.append((i + 1, 3))
+        
+        # 最適な分割点を選択
+        if split_points:
+            # 優先度と位置を考慮して最適な分割点を選択
+            split_points.sort(key=lambda x: (x[1], abs(x[0] - 25)))  # 優先度順、25文字に近い順
+            split_pos = split_points[0][0]
+            
+            first_part = line[:split_pos].rstrip()
+            remaining = line[split_pos:].lstrip()
+            
+            result = [first_part]
+            if remaining:
+                result.extend(self._split_long_line(remaining))
+            return result
+        else:
+            # 適切な分割点がない場合は25文字で強制分割
+            first_part = line[:25]
+            remaining = line[25:]
+            
+            result = [first_part]
+            if remaining:
+                result.extend(self._split_long_line(remaining))
+            return result
 
     def _get_fallback_content(self, theme: str, day: str, animal_type: str) -> str:
         """

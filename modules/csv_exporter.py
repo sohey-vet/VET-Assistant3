@@ -121,14 +121,14 @@ class CSVExporter:
             # スケジュール用のデータを準備
             schedule_data = []
             
-            for content in weekly_content:
+            for i, content in enumerate(weekly_content, start=2):
                 schedule_data.append({
                     '投稿日': content['date'],
                     '曜日': content['day'],
                     '時刻': content['scheduled_time'],
                     '動物種': content['animal_type'],
                     'テーマ': content['theme'],
-                    '文字数': content['character_count'],
+                    '文字数': f'=LEN(G{i})',
                     '投稿文(全文)': content['post_text']
                 })
             

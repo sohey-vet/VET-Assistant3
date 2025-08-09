@@ -5,14 +5,16 @@ VET-Assistant3 メインエントリーポイント
 獣医師の専門知識を活用したコンテンツ生成システム（X投稿なし版）
 """
 
+# VET-Assistant3 メイン
+
 import os
 import sys
 from dotenv import load_dotenv
 
-# .envファイルを読み込み
+# .env を一度だけ読み込む（ここが最重要）
 load_dotenv()
 
-# プロジェクトルートをPythonパスに追加
+# プロジェクトルートを Python パスへ
 project_root = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, project_root)
 
@@ -20,6 +22,7 @@ from modules.data_manager import load_and_clean_tweets, analyze_recent_themes
 from modules.content_generator import ContentGenerator
 from modules.csv_exporter import CSVExporter
 from scheduler import VETScheduler
+
 
 
 def main():
@@ -31,10 +34,13 @@ def main():
     
     # 環境変数チェック
     required_env_vars = [
-        'GEMINI_API_KEY'
+        'GEMINI_API_KEY',
+        'GOOGLE_SHEETS_CREDENTIALS_PATH',
+        'GOOGLE_SHEETS_SPREADSHEET_ID'
     ]
     
     missing_vars = []
+
     for var in required_env_vars:
         if not os.getenv(var):
             missing_vars.append(var)
@@ -45,8 +51,10 @@ def main():
             print(f"   - {var}")
         print("\n.envファイルを確認してください。")
         print("Gemini APIキーなしでもデータ分析は可能です。")
+        print("ただし Google Sheets 連携は上記2つの変数が必要です。")
     else:
         print("SUCCESS: 環境変数チェック完了")
+
     
     # コマンドライン引数の処理
     if len(sys.argv) > 1:

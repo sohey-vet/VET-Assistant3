@@ -1,14 +1,18 @@
 import pandas as pd
 import json
 import re
+import os
 from datetime import datetime
 from typing import List, Dict, Any, Tuple
 
 
-def load_and_clean_tweets(filepath: str = "C:\\Users\\souhe\\Desktop\\tweets.js") -> pd.DataFrame:
+def load_and_clean_tweets(filepath: str = None) -> pd.DataFrame:
     """
     tweets.jsファイルを読み込み、分析可能な形式に変換する関数
     """
+    if filepath is None:
+        filepath = os.getenv('TWEETS_FILE_PATH', 'tweets.js')
+    
     try:
         with open(filepath, 'r', encoding='utf-8') as f:
             content = f.read()

@@ -19,7 +19,10 @@
       "Bash(ls:*)",
       "Bash(git checkout:*)",
       "Bash(git reset:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(git rm:*)",
+      "Bash(move:*)",
+      "Bash(git commit:*)"
     ],
     "deny": []
   }
